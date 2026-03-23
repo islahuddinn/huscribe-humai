@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://p.trellocdn.com/power-up.min.css">
+    <title>Card Actions</title>
+    <style>
+      body {
+        padding: 1em;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", sans-serif;
+      }
+      .button {
+        display: block;
+        margin: 8px 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="mod-primary button" id="create-card">Create Backend Task</button>
+    <button class="button" id="link-card">Link to Existing Task</button>
+    
+    <script src="https://p.trellocdn.com/power-up.min.js"></script>
+    <script>
+      var t = window.TrelloPowerUp.iframe();
+      
+      document.getElementById('create-card').addEventListener('click', function() {
+        // Get card data
+        t.card('all')
+          .then(function(card) {
+            // Make API call to your backend
+            return fetch('/api/trello/cards', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                trelloCardId: card.id,
+                name: card.name,
+                desc: card.desc
+              })
+            });
+          })
+          .then(function(response) {
+            return response.json();
+          })
+          .then(function(data) {
+            // Store the relationship
+            return t.set('card', 'shared', 'backendId', data.id);
+          })
+          .then(function() {
+            t.closePopup();
+            t.notifyParent('done');
+          })
+          .catch(function(error) {
+            console.error(error);
+            t.closePopup();
+          });
+      });
+      
+      document.getElementById('link-card').addEventListener('click', function() {
+        // Similar functionality for linking
+        t.closePopup();
+      });
+    </script>
+  </body>
+</html> 

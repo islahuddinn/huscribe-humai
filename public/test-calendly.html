@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendly Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        button {
+            background-color: #006bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056cc;
+        }
+        button.danger {
+            background-color: #dc3545;
+        }
+        button.danger:hover {
+            background-color: #bd2130;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #ffe6e6;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .button-group {
+            margin: 10px 0;
+            padding: 10px 0;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Calendly Integration Test</h1>
+    
+    <div class="container">
+        <h2>OAuth Flow Test</h2>
+        <div class="button-group">
+            <p>Step 1: Connect your Calendly account</p>
+            <button onclick="startOAuth()">Connect with Calendly</button>
+        </div>
+
+        <div class="button-group">
+            <p>Step 2: Test API Endpoints</p>
+            <button onclick="getCurrentUser()">Get Current User</button>
+            <button onclick="getSchedulingLink()">Get Scheduling Link</button>
+            <button onclick="getScheduledEvents()">Get Scheduled Events</button>
+        </div>
+
+        <div class="button-group">
+            <p>Step 3: Disconnect (Optional)</p>
+            <button onclick="disconnectCalendly()" class="danger">Disconnect Calendly</button>
+        </div>
+
+        <div id="error" class="error"></div>
+        <div id="result" class="result" style="display: none;">
+            <h3>Response:</h3>
+            <pre id="response"></pre>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+        let calendlyTokens = null;
+
+        // Function to start OAuth flow
+        function startOAuth() {
+            fetch('/api/calendly/auth')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.authUrl) {
+                        window.location.href = data.authUrl;
+                    } else {
+                        showError('No auth URL received');
+                    }
+                })
+                .catch(error => {
+                    showError('Error starting OAuth flow: ' + error.message);
+                });
+        }
+
+        // Function to get current user
+        function getCurrentUser() {
+            callAuthenticatedEndpoint('/api/calendly/me', 'GET');
+        }
+
+        // Function to get scheduling link
+        function getSchedulingLink() {
+            callAuthenticatedEndpoint('/api/calendly/scheduling-link', 'GET');
+        }
+
+        // Function to get scheduled events
+        function getScheduledEvents() {
+            callAuthenticatedEndpoint('/api/calendly/events', 'GET');
+        }
+
+        // Function to disconnect Calendly
+        function disconnectCalendly() {
+            if (confirm('Are you sure you want to disconnect your Calendly account?')) {
+                callAuthenticatedEndpoint('/api/calendly/disconnect', 'DELETE')
+                    .then(data => {
+                        if (data.success) {
+                            localStorage.removeItem('calendlyTokens');
+                            calendlyTokens = null;
+                            showError('Successfully disconnected from Calendly');
+                        }
+                    });
+            }
+        }
+
+        // Helper function for authenticated API calls
+        function callAuthenticatedEndpoint(endpoint, method) {
+            const token = localStorage.getItem('jwtToken') || authToken;
+            
+            if (!token) {
+                showError('No authentication token found. Please connect with Calendly first.');
+                return Promise.reject('No token');
+            }
+
+            return fetch(endpoint, {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                return data;
+            })
+            .catch(error => {
+                showError(`Error calling ${endpoint}: ${error.message}`);
+                throw error;
+            });
+        }
+
+        // Function to show error messages
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        // Function to store tokens
+        function storeTokens(data) {
+            if (data.data) {
+                // Store JWT token
+                if (data.data.token) {
+                    authToken = data.data.token;
+                    localStorage.setItem('jwtToken', data.data.token);
+                }
+
+                // Store Calendly tokens
+                if (data.data.calendly) {
+                    calendlyTokens = {
+                        accessToken: data.data.calendly.accessToken,
+                        refreshToken: data.data.calendly.refreshToken
+                    };
+                    localStorage.setItem('calendlyTokens', JSON.stringify(calendlyTokens));
+                }
+
+                // Store user data
+                if (data.data.user) {
+                    localStorage.setItem('userData', JSON.stringify(data.data.user));
+                }
+            }
+        }
+
+        // Check for callback response
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+
+            // Try to restore tokens from localStorage
+            const storedJwtToken = localStorage.getItem('jwtToken');
+            const storedCalendlyTokens = localStorage.getItem('calendlyTokens');
+            
+            if (storedJwtToken) {
+                authToken = storedJwtToken;
+            }
+            if (storedCalendlyTokens) {
+                calendlyTokens = JSON.parse(storedCalendlyTokens);
+            }
+
+            if (error) {
+                showError('Authorization error: ' + error);
+            } else if (code) {
+                // Show the code in the result div
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('response').textContent = 'Authorization code received: ' + code;
+
+                // Call the backend to exchange the code
+                fetch(`/api/calendly/callback?code=${code}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                        storeTokens(data);
+                    })
+                    .catch(error => {
+                        showError('Error exchanging code: ' + error.message);
+                    });
+            }
+        };
+    </script>
+</body>
+</html> 

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tenant Dynamics 365 Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background-color: #106ebe; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        .organization-card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+        }
+        .hidden { display: none; }
+        h1 { color: #0078d4; }
+        h2 { color: #323130; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Multi-Tenant Dynamics 365 Integration Demo</h1>
+        
+        <div id="loginSection">
+            <h2>Step 1: Authentication</h2>
+            <p>Test multi-tenant authentication with different Microsoft accounts.</p>
+            
+            <button onclick="initiateLogin()">🔐 Login with Microsoft</button>
+            <button onclick="clearSession()">🗑️ Clear Session</button>
+            
+            <div id="authStatus" class="hidden"></div>
+        </div>
+
+        <div id="userSection" class="hidden">
+            <h2>Step 2: User Information</h2>
+            <div id="userInfo"></div>
+        </div>
+
+        <div id="organizationSection" class="hidden">
+            <h2>Step 3: Organization Discovery</h2>
+            <p>Discover available Dynamics 365 organizations for the authenticated user.</p>
+            
+            <button onclick="discoverOrganizations()">🔍 Discover Organizations</button>
+            <div id="organizationResults"></div>
+        </div>
+
+        <div id="testSection" class="hidden">
+            <h2>Step 4: Test Entity Creation</h2>
+            <p>Test creating entities in the selected organization.</p>
+            
+            <button onclick="testContactCreation()">👤 Create Test Contact</button>
+            <button onclick="testLeadCreation()">🎯 Create Test Lead</button>
+            <button onclick="checkCapabilities()">🔍 Check User Capabilities</button>
+            
+            <div id="testResults"></div>
+        </div>
+    </div>
+
+    <script>
+        let accessToken = null;
+        let selectedOrgUrl = null;
+
+        // Check for tokens in URL parameters (from callback)
+        function checkUrlForTokens() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('access_token');
+            const refreshToken = urlParams.get('refresh_token');
+            const email = urlParams.get('email');
+            const fullName = urlParams.get('fullName');
+
+            if (token) {
+                accessToken = token;
+                showStatus('authStatus', 'success', `✅ Authentication successful! Welcome, ${fullName || email || 'User'}`);
+                
+                // Store tokens in localStorage
+                localStorage.setItem('dynamics_access_token', token);
+                if (refreshToken) localStorage.setItem('dynamics_refresh_token', refreshToken);
+                if (email) localStorage.setItem('user_email', email);
+                if (fullName) localStorage.setItem('user_fullname', fullName);
+
+                // Show user section
+                document.getElementById('userSection').classList.remove('hidden');
+                document.getElementById('userInfo').innerHTML = `
+                    <div class="success">
+                        <strong>Name:</strong> ${fullName || 'Not provided'}<br>
+                        <strong>Email:</strong> ${email || 'Not provided'}<br>
+                        <strong>Token:</strong> ${token.substring(0, 20)}...
+                    </div>
+                `;
+
+                // Show organization section
+                document.getElementById('organizationSection').classList.remove('hidden');
+
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else {
+                // Check localStorage for existing tokens
+                const storedToken = localStorage.getItem('dynamics_access_token');
+                if (storedToken) {
+                    accessToken = storedToken;
+                    const email = localStorage.getItem('user_email');
+                    const fullName = localStorage.getItem('user_fullname');
+                    
+                    showStatus('authStatus', 'info', `🔄 Using stored session for ${fullName || email || 'User'}`);
+                    
+                    document.getElementById('userSection').classList.remove('hidden');
+                    document.getElementById('userInfo').innerHTML = `
+                        <div class="info">
+                            <strong>Name:</strong> ${fullName || 'Not provided'}<br>
+                            <strong>Email:</strong> ${email || 'Not provided'}<br>
+                            <strong>Status:</strong> Using stored session
+                        </div>
+                    `;
+                    
+                    document.getElementById('organizationSection').classList.remove('hidden');
+                }
+            }
+        }
+
+        function initiateLogin() {
+            window.location.href = '/api/dynamics/auth/initiate?platform=web';
+        }
+
+        function clearSession() {
+            localStorage.clear();
+            accessToken = null;
+            selectedOrgUrl = null;
+            
+            document.getElementById('authStatus').innerHTML = '';
+            document.getElementById('userSection').classList.add('hidden');
+            document.getElementById('organizationSection').classList.add('hidden');
+            document.getElementById('testSection').classList.add('hidden');
+            
+            showStatus('authStatus', 'info', '🗑️ Session cleared. You can now test with a different account.');
+        }
+
+        async function discoverOrganizations() {
+            if (!accessToken) {
+                showStatus('organizationResults', 'error', '❌ Please login first');
+                return;
+            }
+
+            showStatus('organizationResults', 'info', '🔍 Discovering organizations...');
+
+            try {
+                const response = await fetch('/api/dynamics/organizations/discover', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const orgs = data.organizations || [];
+                    let html = `<div class="success">✅ Found ${orgs.length} organization(s):</div>`;
+                    
+                    orgs.forEach((org, index) => {
+                        html += `
+                            <div class="organization-card">
+                                <h4>${org.friendlyName}</h4>
+                                <p><strong>Region:</strong> ${org.region}</p>
+                                <p><strong>URL:</strong> ${org.apiUrl}</p>
+                                <p><strong>Unique Name:</strong> ${org.uniqueName}</p>
+                                <button onclick="selectOrganization('${org.apiUrl}', '${org.friendlyName}')">
+                                    📍 Select This Organization
+                                </button>
+                            </div>
+                        `;
+                    });
+
+                    document.getElementById('organizationResults').innerHTML = html;
+                } else {
+                    showStatus('organizationResults', 'error', `❌ Discovery failed: ${data.error}`);
+                }
+            } catch (error) {
+                showStatus('organizationResults', 'error', `❌ Error: ${error.message}`);
+            }
+        }
+
+        function selectOrganization(orgUrl, orgName) {
+            selectedOrgUrl = orgUrl;
+            localStorage.setItem('selected_org_url', orgUrl);
+            localStorage.setItem('selected_org_name', orgName);
+            
+            showStatus('organizationResults', 'success', `✅ Selected organization: ${orgName}`);
+            document.getElementById('testSection').classList.remove('hidden');
+        }
+
+        async function testContactCreation() {
+            await testEntityCreation('contact', {
+                firstname: 'Test',
+                lastname: 'User',
+                emailaddress1: `test.user.${Date.now()}@example.com`,
+                description: 'Created via multi-tenant demo'
+            });
+        }
+
+        async function testLeadCreation() {
+            await testEntityCreation('lead', {
+                subject: 'Multi-tenant test lead',
+                firstname: 'Demo',
+                lastname: 'Lead',
+                companyname: 'Test Company',
+                emailaddress1: `demo.lead.${Date.now()}@example.com`,
+                description: 'Created via multi-tenant demo'
+            });
+        }
+
+        async function testEntityCreation(entityType, data) {
+            if (!accessToken) {
+                showStatus('testResults', 'error', '❌ Please login first');
+                return;
+            }
+
+            if (!selectedOrgUrl) {
+                showStatus('testResults', 'warning', '⚠️ Please select an organization first');
+                return;
+            }
+
+            showStatus('testResults', 'info', `🚀 Creating ${entityType}...`);
+
+            try {
+                const response = await fetch(`/api/dynamics/entity/${entityType}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'X-Environment-URL': selectedOrgUrl,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showStatus('testResults', 'success', 
+                        `✅ ${entityType} created successfully!\nID: ${result.id || 'N/A'}\nEntity: ${result.entityType || entityType}`
+                    );
+                } else {
+                    showStatus('testResults', 'error', 
+                        `❌ Failed to create ${entityType}: ${result.error}\n${result.details ? JSON.stringify(result.details, null, 2) : ''}`
+                    );
+                }
+            } catch (error) {
+                showStatus('testResults', 'error', `❌ Error creating ${entityType}: ${error.message}`);
+            }
+        }
+
+        async function checkCapabilities() {
+            if (!accessToken) {
+                showStatus('testResults', 'error', '❌ Please login first');
+                return;
+            }
+
+            showStatus('testResults', 'info', '🔍 Checking user capabilities...');
+
+            try {
+                const response = await fetch('/api/dynamics/user/sales-capabilities', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'X-Environment-URL': selectedOrgUrl
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const caps = data.capabilities;
+                    let html = `<div class="success">✅ User Capabilities Analysis:</div>`;
+                    html += `<div class="code-block">`;
+                    html += `Overall Status: ${data.summary.overallStatus}\n`;
+                    html += `Sales Hub Access: ${caps.hasSalesHub ? 'Yes' : 'No'}\n`;
+                    html += `Basic CRM Access: ${caps.hasBasicCRM ? 'Yes' : 'No'}\n\n`;
+                    html += `Entity Permissions:\n`;
+                    html += `- Create Leads: ${caps.canCreateLeads ? 'Yes' : 'No'}\n`;
+                    html += `- Create Opportunities: ${caps.canCreateOpportunities ? 'Yes' : 'No'}\n`;
+                    html += `- Create Products: ${caps.canCreateProducts ? 'Yes' : 'No'}\n`;
+                    html += `- Create Quotes: ${caps.canCreateQuotes ? 'Yes' : 'No'}\n`;
+                    html += `</div>`;
+
+                    if (caps.recommendations && caps.recommendations.length > 0) {
+                        html += `<div class="warning">📋 Recommendations:</div>`;
+                        caps.recommendations.forEach(rec => {
+                            html += `<div class="warning">${rec.issue}: ${rec.solution}</div>`;
+                        });
+                    }
+
+                    document.getElementById('testResults').innerHTML = html;
+                } else {
+                    showStatus('testResults', 'error', `❌ Capabilities check failed: ${data.error}`);
+                }
+            } catch (error) {
+                showStatus('testResults', 'error', `❌ Error checking capabilities: ${error.message}`);
+            }
+        }
+
+        function showStatus(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${type}`;
+            element.innerHTML = message.replace(/\n/g, '<br>');
+            element.classList.remove('hidden');
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            checkUrlForTokens();
+            
+            // Check if we have a stored organization
+            const storedOrgUrl = localStorage.getItem('selected_org_url');
+            const storedOrgName = localStorage.getItem('selected_org_name');
+            
+            if (storedOrgUrl && accessToken) {
+                selectedOrgUrl = storedOrgUrl;
+                showStatus('organizationResults', 'info', `🔄 Using stored organization: ${storedOrgName}`);
+                document.getElementById('testSection').classList.remove('hidden');
+            }
+        };
+    </script>
+</body>
+</html> 

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://p.trellocdn.com/power-up.min.css">
+    <title>Authorize</title>
+    <style>
+      body {
+        padding: 1em;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="authorize" class="mod-primary">Authorize Trello</button>
+    
+    <script src="https://p.trellocdn.com/power-up.min.js"></script>
+    <script src="./api-key.js"></script>
+    <script>
+      var t = window.TrelloPowerUp.iframe();
+      
+      document.getElementById('authorize').addEventListener('click', function() {
+        // Get API key from localStorage (set by api-key.js)
+        var apiKey = localStorage.getItem('trelloApiKey');
+        
+        if (!apiKey) {
+          // If API key is not available, fetch it from the server
+          fetch('/api/trello/api-key')
+            .then(response => response.json())
+            .then(data => {
+              localStorage.setItem('trelloApiKey', data.key);
+              authorizeWithTrello(data.key);
+            })
+            .catch(error => {
+              console.error('Error getting API key:', error);
+            });
+        } else {
+          authorizeWithTrello(apiKey);
+        }
+      });
+      
+      function authorizeWithTrello(apiKey) {
+        t.getRestApi()
+          .authorize({ scope: 'read,write' })
+          .then(function(token) {
+            // Save the token
+            return t.set('member', 'private', 'token', token);
+          })
+          .then(function() {
+            // Notify that we're authorized
+            t.closePopup();
+          });
+      }
+    </script>
+  </body>
+</html> 

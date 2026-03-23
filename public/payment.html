@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Plans</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .plans-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .plan-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .plan-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .plan-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .price {
+            font-size: 24px;
+            color: #3498db;
+            margin: 10px 0;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0;
+        }
+
+        .feature-list li {
+            margin: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .feature-list li:before {
+            content: "✓";
+            color: #27ae60;
+            position: absolute;
+            left: 0;
+        }
+
+        .payment-form {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        #card-element {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .error {
+            color: #e74c3c;
+            margin: 10px 0;
+        }
+
+        .success {
+            color: #27ae60;
+            margin: 10px 0;
+        }
+
+        .subscriptions-container {
+            margin-top: 30px;
+        }
+
+        .subscription-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .user-input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .input-group input, .input-group select, .input-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        .input-group input:focus, .input-group select:focus, .input-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #start-button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            background: #2ecc71;
+        }
+
+        #start-button:hover {
+            background: #27ae60;
+        }
+
+        .admin-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .close-button {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-active {
+            background: #27ae60;
+            color: white;
+        }
+
+        .badge-ending {
+            background: #f1c40f;
+            color: white;
+        }
+
+        .badge-cancelled {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .usage-bar {
+            background: #eee;
+            height: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+
+        .usage-progress {
+            background: #3498db;
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+
+        #admin-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        #admin-button button {
+            background: #e74c3c;
+            color: white;
+            font-weight: bold;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #admin-button button:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .plan-actions {
+            margin-top: 20px;
+        }
+
+        .cancel-btn {
+            background: #e74c3c;
+            padding: 10px 20px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .cancel-btn:hover {
+            background: #c0392b;
+        }
+
+        .plan-card.restricted {
+            opacity: 0.7;
+            position: relative;
+        }
+
+        .restriction-message {
+            color: #e74c3c;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .badge-cancelled {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .badge-active {
+            background: #27ae60;
+            color: white;
+        }
+
+        .test-quota-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+
+        .test-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .test-group {
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+
+        .test-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+            width: 100%;
+        }
+
+        .test-btn:hover {
+            background: #2980b9;
+        }
+
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f8f9fa;
+            min-height: 50px;
+        }
+
+        .test-result.success {
+            color: #27ae60;
+            border-left: 4px solid #27ae60;
+        }
+
+        .test-result.error {
+            color: #e74c3c;
+            border-left: 4px solid #e74c3c;
+        }
+
+        #feature-select {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .profile-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+
+        .profile-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .profile-info {
+            padding: 15px;
+            border-right: 1px solid #eee;
+        }
+
+        .usage-history {
+            padding: 15px;
+        }
+
+        .usage-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .usage-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        .usage-card h4 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .stat-label {
+            color: #666;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .feature-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+
+        .feature-enabled {
+            background: #27ae60;
+            color: white;
+        }
+
+        .feature-disabled {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .coupon-section {
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px dashed #ddd;
+            border-radius: 5px;
+        }
+
+        .coupon-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .coupon-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .coupon-message {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .coupon-message.success {
+            color: #27ae60;
+        }
+
+        .coupon-message.error {
+            color: #e74c3c;
+        }
+
+        .coupon-details {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .admin-coupon-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .admin-coupon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .coupon-form-section,
+        .coupon-list-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .coupon-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        /* Coupon Item Styles */
+        .coupon-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+
+        .coupon-item:hover {
+            transform: translateY(-2px);
+        }
+
+        .coupon-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .coupon-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .coupon-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .coupon-action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .edit-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .toggle-btn {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .coupon-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        /* Coupon Input Section */
+        .coupon-section {
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px dashed #ddd;
+            border-radius: 5px;
+        }
+
+        .coupon-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .coupon-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .coupon-message {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .coupon-message.success {
+            color: #27ae60;
+        }
+
+        .coupon-message.error {
+            color: #e74c3c;
+        }
+
+        .plan-select-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .plan-select-container select[multiple] {
+            width: 100%;
+            min-height: 120px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            font-size: 14px;
+        }
+
+        .plan-select-container select[multiple] option {
+            padding: 8px;
+            margin: 2px 0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .plan-select-container select[multiple] option:checked {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .plan-select-container select[multiple] option:hover {
+            background-color: #f5f5f5;
+        }
+
+        .plan-select-help {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .coupon-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .coupon-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .coupon-header h4 {
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        .badge-active {
+            background: #27ae60;
+            color: white;
+        }
+
+        .badge-inactive {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .badge-expired {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .usage-info {
+            margin: 10px 0;
+        }
+
+        .usage-bar {
+            background: #eee;
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+
+        .usage-progress {
+            background: #3498db;
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .coupon-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .coupon-actions button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .edit-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .toggle-btn {
+            background: #f1c40f;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .coupon-actions button:hover {
+            opacity: 0.9;
+        }
+
+        .price-display {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .price-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .original-price {
+            text-decoration: line-through;
+            color: #999;
+        }
+        .discount {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .final-price {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <!-- Admin Button (Always at the top) -->
+    <div id="admin-button" class="hidden">
+        <button onclick="showAddPlanModal()">Add New Plan</button>
+        <button onclick="toggleCouponManagement()">Manage Coupons</button>
+    </div>
+
+    <h1>Payment Plans</h1>
+
+    <!-- User Input Section -->
+    <div class="user-input-section" id="user-input-section">
+        <div class="input-group">
+            <label for="user-id">Enter Your User ID:</label>
+            <input type="text" id="user-id" placeholder="Enter your user ID" required>
+        </div>
+        <div class="input-group">
+            <label for="bearer-token">Enter Bearer Token:</label>
+            <input type="text" id="bearer-token" placeholder="Enter your bearer token" required>
+        </div>
+        <button id="start-button" onclick="startPaymentProcess()">Start Payment Process</button>
+    </div>
+    
+    <!-- Main Content (Initially Hidden) -->
+    <div id="main-content" class="hidden">
+        <!-- Plans Container -->
+        <div class="plans-container" id="plans-container"></div>
+
+        <!-- Payment Form -->
+        <div class="payment-form">
+            <h2>Subscribe to Plan</h2>
+            <div class="input-group">
+                <label for="selected-plan">Selected Plan:</label>
+                <select id="selected-plan" onchange="updatePriceDisplay()"></select>
+                <div id="price-display" class="price-display">
+                    <div class="price-info">
+                        <span class="final-price"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="input-group">
+                <label>
+                    <input type="checkbox" id="free-trial-checkbox">
+                    Start with Free Trial
+                </label>
+            </div>
+            <div class="coupon-section">
+                <div class="coupon-input">
+                    <input type="text" id="coupon-input" placeholder="Enter coupon code">
+                    <button type="button" class="coupon-action-btn" onclick="validateCoupon()">Apply</button>
+                </div>
+                <div id="coupon-message" class="coupon-message"></div>
+                <div id="coupon-details" class="coupon-details hidden"></div>
+            </div>
+            <form id="payment-form">
+                <div id="card-element"></div>
+                <div id="card-errors" class="error" role="alert"></div>
+                <button type="submit" id="subscribe-button">Subscribe</button>
+            </form>
+        </div>
+
+        <!-- Active Subscriptions -->
+        <div class="subscriptions-container">
+            <h2>Your Subscriptions</h2>
+            <div id="subscriptions-list"></div>
+        </div>
+
+        <!-- Profile Section -->
+        <div class="profile-section">
+            <h2>Your Profile & Usage Details</h2>
+            <div class="profile-content">
+                <div class="profile-info">
+                    <h3>Account Information</h3>
+                    <div id="profile-details"></div>
+                </div>
+                <div class="usage-history">
+                    <h3>Usage History</h3>
+                    <div class="usage-stats">
+                        <div class="usage-card">
+                            <h4>RFQ Usage</h4>
+                            <div id="rfq-usage-stats"></div>
+                        </div>
+                        <div class="usage-card">
+                            <h4>Supplier Usage</h4>
+                            <div id="supplier-usage-stats"></div>
+                        </div>
+                        <div class="usage-card">
+                            <h4>Feature Access</h4>
+                            <div id="feature-access-stats"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Quota Consumption -->
+        <div class="test-quota-section">
+            <h2>Test Quota Consumption</h2>
+            <div class="test-buttons">
+                <div class="test-group">
+                    <h3>RFQ Usage</h3>
+                    <button onclick="testRfqUsage()" class="test-btn">Use 1 RFQ</button>
+                    <div id="rfq-usage-result" class="test-result"></div>
+                </div>
+
+                <div class="test-group">
+                    <h3>Supplier Usage</h3>
+                    <button onclick="testSupplierUsage()" class="test-btn">Use 1 Supplier</button>
+                    <div id="supplier-usage-result" class="test-result"></div>
+                </div>
+
+                <div class="test-group">
+                    <h3>Feature Access</h3>
+                    <select id="feature-select">
+                        <option value="whatsappAccess">WhatsApp Access</option>
+                        <option value="emailAccess">Email Access</option>
+                        <option value="webAccess">Web Access</option>
+                        <option value="personalization">Personalization</option>
+                        <option value="publicDb">Public DB</option>
+                    </select>
+                    <button onclick="testFeatureAccess()" class="test-btn">Check Feature Access</button>
+                    <div id="feature-access-result" class="test-result"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Plan Modal -->
+    <div id="add-plan-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-button" onclick="closeAddPlanModal()">&times;</button>
+            <h2>Add New Plan</h2>
+            <form id="add-plan-form">
+                <div class="input-group">
+                    <label for="plan-name">Plan Name</label>
+                    <input type="text" id="plan-name" required>
+                </div>
+                <div class="input-group">
+                    <label for="plan-description">Description</label>
+                    <textarea id="plan-description" required></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="plan-price">Price (USD)</label>
+                    <input type="number" id="plan-price" min="0" step="0.01" required>
+                </div>
+                <div class="input-group">
+                    <label for="rfqs-per-month">RFQs per Month</label>
+                    <input type="number" id="rfqs-per-month" min="0" required>
+                </div>
+                <div class="input-group">
+                    <label for="suppliers-per-rfq">Suppliers per RFQ</label>
+                    <input type="number" id="suppliers-per-rfq" min="0" required>
+                </div>
+                <div class="input-group">
+                    <label>Features</label>
+                    <div>
+                        <input type="checkbox" id="whatsapp-access">
+                        <label for="whatsapp-access">WhatsApp Access</label>
+                    </div>
+                    <div>
+                        <input type="checkbox" id="email-access">
+                        <label for="email-access">Email Access</label>
+                    </div>
+                    <div>
+                        <input type="checkbox" id="web-access">
+                        <label for="web-access">Web Access</label>
+                    </div>
+                    <div>
+                        <input type="checkbox" id="personalization">
+                        <label for="personalization">Personalization</label>
+                    </div>
+                    <div>
+                        <input type="checkbox" id="public-db">
+                        <label for="public-db">Public DB</label>
+                    </div>
+                </div>
+                <button type="submit">Create Plan</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Coupon Section -->
+    <div id="admin-coupon-section" class="admin-coupon-section hidden">
+        <h2>Coupon Management</h2>
+        
+        <div class="coupon-stats">
+            <div class="stat-card">
+                <div class="stat-number" id="total-coupons">0</div>
+                <div class="stat-label">Total Coupons</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="active-coupons">0</div>
+                <div class="stat-label">Active Coupons</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="used-coupons">0</div>
+                <div class="stat-label">Used Coupons</div>
+            </div>
+        </div>
+
+        <div class="admin-coupon-grid">
+            <div class="coupon-form-section">
+                <h3>Create New Coupon</h3>
+                <form id="coupon-form">
+                    <div class="input-group">
+                        <label for="coupon-code">Coupon Code</label>
+                        <input type="text" id="coupon-code" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="discount-percentage">Discount Percentage</label>
+                        <input type="number" id="discount-percentage" min="1" max="100" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="valid-until">Valid Until</label>
+                        <input type="datetime-local" id="valid-until" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="max-uses">Maximum Uses</label>
+                        <input type="number" id="max-uses" min="1" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="allowed-users">Allowed Users (Optional)</label>
+                        <input type="text" id="allowed-users" placeholder="Comma-separated email addresses">
+                    </div>
+                    <button type="submit" class="coupon-action-btn">Create Coupon</button>
+                </form>
+            </div>
+
+            <div class="coupon-list-section">
+                <h3>Active Coupons</h3>
+                <div id="coupon-list">
+                    <!-- Coupon items will be added here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let userId = null;
+        let bearerToken = null;
+        let isAdmin = false;
+        let globalPlans = [];
+        let validCoupon = null;
+        let couponForm = null;
+        let couponList = null;
+        let totalCouponsEl = null;
+        let activeCouponsEl = null;
+        let usedCouponsEl = null;
+
+        // Initialize Stripe
+        const stripe = Stripe('pk_test_51P3YjVEpvtL27CQUc2f3gOMVpNWQ8IP9K3qCuMIZyfRFtBqOCuSfgAx6ikxjvjP8DAcU8TuXKzgRZJggVBKyMk2l00Z21tlPYO');
+        const elements = stripe.elements();
+        let card = null;
+
+        // Initialize elements after DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeElements();
+            // Initialize Stripe card element
+            card = elements.create('card');
+        });
+
+        // Function to start payment process
+        async function startPaymentProcess() {
+            userId = document.getElementById('user-id').value.trim();
+            bearerToken = document.getElementById('bearer-token').value.trim();
+            
+            if (!userId || !bearerToken) {
+                alert('Please enter both User ID and Bearer Token');
+                return;
+            }
+
+            // Check admin status first
+            await checkAdminStatus(userId);
+
+            // Hide user input section and show main content
+            document.getElementById('user-input-section').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+            
+            // Mount card element
+            if (card) {
+            card.mount('#card-element');
+                
+                // Handle card element errors
+                card.addEventListener('change', function(event) {
+                    const displayError = document.getElementById('card-errors');
+                    if (event.error) {
+                        displayError.textContent = event.error.message;
+                    } else {
+                        displayError.textContent = '';
+                    }
+                });
+            }
+            
+            // Fetch initial data
+            await Promise.all([
+                fetchPlans(),
+                fetchSubscriptions(),
+                fetchProfileInfo()
+            ]);
+        }
+
+        // Initialize all elements
+        function initializeElements() {
+            // Initialize coupon management elements
+            couponForm = document.getElementById('coupon-form');
+            couponList = document.getElementById('coupon-list');
+            totalCouponsEl = document.getElementById('total-coupons');
+            activeCouponsEl = document.getElementById('active-coupons');
+            usedCouponsEl = document.getElementById('used-coupons');
+
+            // Add event listener to coupon form if it exists
+            if (couponForm) {
+                couponForm.addEventListener('submit', handleCouponSubmit);
+            }
+        }
+
+        // Function to get headers with authorization
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${bearerToken}`
+            };
+        }
+
+        // Check if user is admin
+        async function checkAdminStatus(userId) {
+            try {
+                // For testing: if userId is "admin", show admin button and coupon section
+                if (userId.toLowerCase() === "admin") {
+                    isAdmin = true;
+                const adminButton = document.getElementById('admin-button');
+                    const adminCouponSection = document.getElementById('admin-coupon-section');
+                    
+                    if (adminButton) adminButton.classList.remove('hidden');
+                    if (adminCouponSection) adminCouponSection.classList.remove('hidden');
+                    
+                    // Initialize coupon management when admin status is confirmed
+                    setTimeout(() => {
+                        initializeElements();
+                        loadCoupons();
+                    }, 100);
+                    
+                    return;
+                }
+
+                // For real users, check subscription
+                const response = await fetch(`/api/payments/subscription/${userId}`, {
+                    headers: getHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to check admin status');
+                }
+                
+                const data = await response.json();
+                isAdmin = data.isAdmin || false;
+                
+                const adminButton = document.getElementById('admin-button');
+                const adminCouponSection = document.getElementById('admin-coupon-section');
+                
+                if (isAdmin) {
+                    if (adminButton) adminButton.classList.remove('hidden');
+                    if (adminCouponSection) adminCouponSection.classList.remove('hidden');
+                    setTimeout(() => {
+                        initializeElements();
+                        loadCoupons();
+                    }, 100);
+                } else {
+                    if (adminButton) adminButton.classList.add('hidden');
+                    if (adminCouponSection) adminCouponSection.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Error checking admin status:', error);
+                isAdmin = false;
+                const adminButton = document.getElementById('admin-button');
+                const adminCouponSection = document.getElementById('admin-coupon-section');
+                if (adminButton) adminButton.classList.add('hidden');
+                if (adminCouponSection) adminCouponSection.classList.add('hidden');
+            }
+        }
+
+        // Toggle coupon management section
+        function toggleCouponManagement() {
+            const couponSection = document.getElementById('admin-coupon-section');
+            if (couponSection.style.display === 'none') {
+                couponSection.style.display = 'block';
+                loadCoupons();
+            } else {
+                couponSection.style.display = 'none';
+            }
+        }
+
+        // Load and display coupons
+        async function loadCoupons() {
+            try {
+                const response = await fetch('/api/payments/coupons', {
+                    headers: getHeaders()
+                });
+                if (!response.ok) throw new Error('Failed to load coupons');
+                const coupons = await response.json();
+                displayCoupons(coupons);
+                updateCouponStats(coupons);
+            } catch (error) {
+                showMessage('error', 'Failed to load coupons: ' + error.message);
+            }
+        }
+
+        // Update coupon stats
+        function updateCouponStats(coupons) {
+            if (!totalCouponsEl || !activeCouponsEl || !usedCouponsEl) return;
+
+            const now = new Date();
+            const activeCoupons = coupons.filter(coupon => 
+                coupon.isActive && new Date(coupon.validUntil) > now
+            );
+            const usedCoupons = coupons.filter(coupon => 
+                coupon.currentUses >= coupon.maxUses
+            );
+
+            totalCouponsEl.textContent = coupons.length;
+            activeCouponsEl.textContent = activeCoupons.length;
+            usedCouponsEl.textContent = usedCoupons.length;
+        }
+
+        // Display coupons
+        function displayCoupons(coupons) {
+            const couponList = document.getElementById('coupon-list');
+            if (!couponList) return;
+
+            couponList.innerHTML = '';
+            
+            coupons.forEach(coupon => {
+                const couponItem = document.createElement('div');
+                couponItem.className = 'coupon-item';
+                
+                const usagePercentage = (coupon.currentUses / coupon.maxUses) * 100;
+                const isExpired = new Date(coupon.validUntil) < new Date();
+                const status = isExpired ? 'Expired' : coupon.isActive ? 'Active' : 'Inactive';
+                const statusClass = isExpired ? 'expired' : coupon.isActive ? 'active' : 'inactive';
+
+                couponItem.innerHTML = `
+                    <div class="coupon-header">
+                        <h4>${coupon.code}</h4>
+                        <span class="badge badge-${statusClass}">${status}</span>
+                    </div>
+                    <div class="coupon-details">
+                        <p>Discount: ${coupon.discountPercentage}%</p>
+                        <p>Valid Until: ${new Date(coupon.validUntil).toLocaleDateString()}</p>
+                        <div class="usage-info">
+                            <p>Usage: ${coupon.currentUses} / ${coupon.maxUses}</p>
+                            <div class="usage-bar">
+                                <div class="usage-progress" style="width: ${usagePercentage}%"></div>
+                            </div>
+                        </div>
+                        ${coupon.allowedUsers.length > 0 ? 
+                            `<p>Restricted to: ${coupon.allowedUsers.join(', ')}</p>` : 
+                            '<p>Available to all users</p>'}
+                    </div>
+                    <div class="coupon-actions">
+                        <button onclick="editCoupon('${coupon._id}')" class="edit-btn">Edit</button>
+                        <button onclick="toggleCoupon('${coupon._id}')" class="toggle-btn">
+                            ${coupon.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onclick="deleteCoupon('${coupon._id}')" class="delete-btn">Delete</button>
+                    </div>
+                `;
+                
+                couponList.appendChild(couponItem);
+            });
+        }
+
+        // Fetch and display plans
+        async function fetchPlans() {
+            try {
+                // Fetch plans based on user type
+                const plansResponse = await fetch('/api/plans', {
+                    headers: getHeaders()
+                });
+
+                if (!plansResponse.ok) {
+                    throw new Error('Failed to fetch plans');
+                }
+
+                const plans = await plansResponse.json();
+                globalPlans = plans; // Store in global variable
+
+                let planRestrictions = {};
+                
+                // Only fetch plan history for non-admin users
+                if (!isAdmin) {
+                    try {
+                        const historyResponse = await fetch('/api/payments/plan-history', {
+                            headers: getHeaders()
+                        });
+                        
+                        if (historyResponse.ok) {
+                            const history = await historyResponse.json();
+                // Create a map of plan restrictions
+                history.planHistory.forEach(planInfo => {
+                    planRestrictions[planInfo.plan._id] = {
+                        canSubscribe: planInfo.canSubscribe,
+                        restrictionReason: planInfo.restrictionReason,
+                        status: planInfo.status,
+                        endsAt: planInfo.endsAt
+                    };
+                });
+                        }
+                    } catch (error) {
+                        console.error('Error fetching plan history:', error);
+                    }
+                }
+
+                displayPlans(plans, planRestrictions);
+                populatePlanSelect(plans, planRestrictions);
+            } catch (error) {
+                console.error('Error fetching plans:', error);
+                document.getElementById('plans-container').innerHTML = 
+                    '<p class="error">Error loading plans. Please try again later.</p>';
+            }
+        }
+
+        // Display plans in cards
+        function displayPlans(plans, planRestrictions) {
+            const container = document.getElementById('plans-container');
+            container.innerHTML = plans.map(plan => {
+                const restriction = planRestrictions[plan._id] || { canSubscribe: true };
+                const isRestricted = !restriction.canSubscribe;
+                const statusBadge = restriction.status ? 
+                    `<span class="badge badge-${restriction.status}">${restriction.status}</span>` : '';
+                const endDate = restriction.endsAt ? 
+                    `<p>Available after: ${new Date(restriction.endsAt).toLocaleDateString()}</p>` : '';
+
+                return `
+                    <div class="plan-card ${isRestricted ? 'restricted' : ''}">
+                        <h3>${plan.name} ${statusBadge}</h3>
+                        <p class="price">$${plan.price.amount}/month</p>
+                        <p>${plan.description}</p>
+                        <ul class="feature-list">
+                            <li>${plan.features.rfqsPerMonth} RFQs per month</li>
+                            <li>${plan.features.suppliersPerRfq} suppliers per RFQ</li>
+                            ${plan.features.whatsappAccess ? '<li>WhatsApp Access</li>' : ''}
+                            ${plan.features.emailAccess ? '<li>Email Access</li>' : ''}
+                            ${plan.features.webAccess ? '<li>Web Access</li>' : ''}
+                            ${plan.features.personalization ? '<li>Personalization</li>' : ''}
+                            ${plan.features.publicDb ? '<li>Public DB Access</li>' : ''}
+                        </ul>
+                        ${isRestricted ? `
+                            <p class="restriction-message">${restriction.restrictionReason}</p>
+                            ${endDate}
+                        ` : `
+                            <button onclick="selectPlan('${plan._id}')">Select Plan</button>
+                        `}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Populate plan select dropdown
+        function populatePlanSelect(plans, planRestrictions) {
+            const select = document.getElementById('selected-plan');
+            select.innerHTML = plans
+                .filter(plan => !(planRestrictions[plan._id] && !planRestrictions[plan._id].canSubscribe))
+                .map(plan => `
+                    <option value="${plan._id}">${plan.name} - $${plan.price.amount}/month</option>
+                `).join('');
+            updatePriceDisplay();
+        }
+
+        // Select a plan
+        function selectPlan(planId) {
+            document.getElementById('selected-plan').value = planId;
+            document.querySelector('.payment-form').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Add loading state management functions
+        function setLoading(isLoading) {
+            const subscribeButton = document.getElementById('subscribe-button');
+            if (!subscribeButton) return; // Guard clause if button doesn't exist
+            
+            if (isLoading) {
+                subscribeButton.disabled = true;
+                subscribeButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+            } else {
+                subscribeButton.disabled = false;
+                subscribeButton.innerHTML = 'Subscribe';
+            }
+        }
+
+        // Update subscription form handler
+        document.getElementById('payment-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            try {
+                setLoading(true);
+                
+                const selectedPlan = document.getElementById('selected-plan');
+                if (!selectedPlan || !selectedPlan.value) {
+                    showMessage('Please select a plan', 'error');
+                    setLoading(false);
+                    return;
+                }
+
+                const couponCode = document.getElementById('coupon-input')?.value;
+                let discountedPrice;
+                
+                if (validCoupon && selectedPlan.value) {
+                    const plan = globalPlans.find(p => p._id === selectedPlan.value);
+                    if (plan) {
+                        const originalPrice = plan.price.amount;
+                        const discountAmount = (originalPrice * validCoupon.discountPercentage) / 100;
+                        discountedPrice = originalPrice - discountAmount;
+                    }
+                }
+
+                // Create payment method
+                const { error: stripeError, paymentMethod } = await stripe.createPaymentMethod({
+                    type: 'card',
+                    card: card,
+                });
+
+                if (stripeError) {
+                    showMessage(stripeError.message, 'error');
+                    setLoading(false);
+                    return;
+                }
+
+                // Create subscription
+                const response = await fetch('/api/payments/create-subscription', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getHeaders()
+                    },
+                    body: JSON.stringify({
+                        paymentMethodId: paymentMethod.id,
+                        planId: selectedPlan.value,
+                        couponCode: couponCode || undefined,
+                        discountedPrice: discountedPrice || undefined
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to create subscription');
+                }
+
+                showMessage('Subscription created successfully!', 'success');
+              
+
+            } catch (error) {
+                showMessage(error.message || 'An error occurred', 'error');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Fetch and display subscriptions
+        async function fetchSubscriptions() {
+            if (!userId) return;
+            
+            try {
+                const response = await fetch(`/api/payments/subscription/${userId}`, {
+                    headers: getHeaders()
+                });
+                const subscription = await response.json();
+                
+                const container = document.getElementById('subscriptions-list');
+                if (subscription.plan) {
+                    const usagePercentRfq = (subscription.usage.voicesUsed / subscription.plan.features.rfqsPerMonth) * 100;
+                    const usagePercentSupplier = (subscription.usage.meetingsUsed / subscription.plan.features.suppliersPerRfq) * 100;
+
+                    container.innerHTML = `
+                        <div class="subscription-card">
+                            <h3>${subscription.plan.name}</h3>
+                            <p>
+                                Status: 
+                                <span class="badge badge-${subscription.status}">
+                                    ${subscription.status}
+                                </span>
+                                ${subscription.isEnding ? `
+                                    <span class="badge badge-ending">
+                                        Ending in ${subscription.remainingDays} days
+                                    </span>
+                                ` : ''}
+                            </p>
+                            <p>Ends at: ${new Date(subscription.endsAt).toLocaleDateString()}</p>
+                            ${subscription.trialEndsAt ? 
+                                `<p>Trial ends: ${new Date(subscription.trialEndsAt).toLocaleDateString()}</p>` : 
+                                ''
+                            }
+                            
+                            <h4>Usage</h4>
+                            <p>RFQs Used: ${subscription.usage.voicesUsed}/${subscription.plan.features.rfqsPerMonth}</p>
+                            <div class="usage-bar">
+                                <div class="usage-progress" style="width: ${usagePercentRfq}%"></div>
+                            </div>
+                            
+                            <p>Suppliers Used: ${subscription.usage.meetingsUsed}/${subscription.plan.features.suppliersPerRfq}</p>
+                            <div class="usage-bar">
+                                <div class="usage-progress" style="width: ${usagePercentSupplier}%"></div>
+                            </div>
+
+                            <div class="plan-actions">
+                                ${subscription.status === 'active' && subscription.subscriptionId ? `
+                                    <button onclick="cancelSubscription('${subscription.subscriptionId}')" class="cancel-btn">
+                                        Cancel Subscription
+                                    </button>
+                                ` : subscription.status === 'active' ? `
+                                    <p class="error">Unable to cancel subscription at this time. Please contact support.</p>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p>No active subscriptions found.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching subscriptions:', error);
+                document.getElementById('subscriptions-list').innerHTML = 
+                    '<p class="error">Error loading subscriptions. Please try again later.</p>';
+            }
+        }
+
+        // Cancel subscription
+        async function cancelSubscription(subscriptionId) {
+            if (!confirm('Are you sure you want to cancel your subscription? You will still have access until the end of your billing period.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/payments/cancel-subscription/${subscriptionId}`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert(`Subscription cancelled successfully. Your access will continue until ${new Date(result.endsAt).toLocaleDateString()}`);
+                    fetchSubscriptions();
+                } else {
+                    throw new Error(result.message || 'Failed to cancel subscription');
+                }
+            } catch (error) {
+                console.error('Error cancelling subscription:', error);
+                alert(error.message);
+            }
+        }
+
+        // Test RFQ Usage
+        async function testRfqUsage() {
+            try {
+                const response = await fetch('/api/payments/usage/rfq', {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                const resultDiv = document.getElementById('rfq-usage-result');
+                
+                if (response.ok) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `
+                        <strong>Success!</strong><br>
+                        RFQs Used: ${result.voicesUsed}<br>
+                        Total RFQs: ${result.rfqsTotal}<br>
+                        Remaining: ${result.remainingRfqs}
+                    `;
+                    // Refresh profile info
+                    await fetchProfileInfo();
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `<strong>Error:</strong> ${result.message}`;
+                }
+            } catch (error) {
+                document.getElementById('rfq-usage-result').className = 'test-result error';
+                document.getElementById('rfq-usage-result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Test Supplier Usage
+        async function testSupplierUsage() {
+            try {
+                const response = await fetch('/api/payments/usage/supplier', {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                const resultDiv = document.getElementById('supplier-usage-result');
+                
+                if (response.ok) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `
+                        <strong>Success!</strong><br>
+                        Suppliers Used: ${result.meetingsUsed}<br>
+                        Total Suppliers: ${result.suppliersTotal}<br>
+                        Remaining: ${result.remainingSuppliers}
+                    `;
+                    // Refresh profile info
+                    await fetchProfileInfo();
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `<strong>Error:</strong> ${result.message}`;
+                }
+            } catch (error) {
+                document.getElementById('supplier-usage-result').className = 'test-result error';
+                document.getElementById('supplier-usage-result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Test Feature Access
+        async function testFeatureAccess() {
+            try {
+                const featureName = document.getElementById('feature-select').value;
+                const response = await fetch(`/api/payments/feature/${featureName}`, {
+                    headers: getHeaders()
+                });
+
+                const result = await response.json();
+                const resultDiv = document.getElementById('feature-access-result');
+                
+                if (response.ok) {
+                    resultDiv.className = 'test-result ' + (result.hasAccess ? 'success' : 'error');
+                    resultDiv.innerHTML = `
+                        <strong>Feature: ${result.feature}</strong><br>
+                        Access: ${result.hasAccess ? 'Granted' : 'Denied'}<br>
+                        Plan: ${result.planName}<br>
+                        Status: ${result.subscriptionStatus}
+                    `;
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `<strong>Error:</strong> ${result.message}`;
+                }
+            } catch (error) {
+                document.getElementById('feature-access-result').className = 'test-result error';
+                document.getElementById('feature-access-result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Fetch and display profile information
+        async function fetchProfileInfo() {
+            if (!userId) return;
+            
+            try {
+                const response = await fetch(`/api/payments/subscription/${userId}`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.plan) {
+                    // Update profile details
+                    document.getElementById('profile-details').innerHTML = `
+                        <div class="stat-item">
+                            <span class="stat-label">Current Plan:</span>
+                            <span class="stat-value">${data.plan.name}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Status:</span>
+                            <span class="stat-value">${data.status}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Subscription Ends:</span>
+                            <span class="stat-value">${new Date(data.endsAt).toLocaleDateString()}</span>
+                        </div>
+                        ${data.trialEndsAt ? `
+                            <div class="stat-item">
+                                <span class="stat-label">Trial Ends:</span>
+                                <span class="stat-value">${new Date(data.trialEndsAt).toLocaleDateString()}</span>
+                            </div>
+                        ` : ''}
+                    `;
+
+                    // Update RFQ usage stats
+                    const rfqPercent = (data.usage.voicesUsed / data.plan.features.rfqsPerMonth) * 100;
+                    document.getElementById('rfq-usage-stats').innerHTML = `
+                        <div class="stat-item">
+                            <span class="stat-label">Used:</span>
+                            <span class="stat-value">${data.usage.voicesUsed}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total:</span>
+                            <span class="stat-value">${data.plan.features.rfqsPerMonth}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Remaining:</span>
+                            <span class="stat-value">${data.plan.features.rfqsPerMonth - data.usage.voicesUsed}</span>
+                        </div>
+                        <div class="usage-bar">
+                            <div class="usage-progress" style="width: ${rfqPercent}%"></div>
+                        </div>
+                    `;
+
+                    // Update Supplier usage stats
+                    const supplierPercent = (data.usage.meetingsUsed / data.plan.features.suppliersPerRfq) * 100;
+                    document.getElementById('supplier-usage-stats').innerHTML = `
+                        <div class="stat-item">
+                            <span class="stat-label">Used:</span>
+                            <span class="stat-value">${data.usage.meetingsUsed}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total:</span>
+                            <span class="stat-value">${data.plan.features.suppliersPerRfq}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Remaining:</span>
+                            <span class="stat-value">${data.plan.features.suppliersPerRfq - data.usage.meetingsUsed}</span>
+                        </div>
+                        <div class="usage-bar">
+                            <div class="usage-progress" style="width: ${supplierPercent}%"></div>
+                        </div>
+                    `;
+
+                    // Update Feature access stats
+                    document.getElementById('feature-access-stats').innerHTML = `
+                        <div class="stat-item">
+                            <span class="stat-label">WhatsApp Access:</span>
+                            <span class="feature-status ${data.plan.features.whatsappAccess ? 'feature-enabled' : 'feature-disabled'}">
+                                ${data.plan.features.whatsappAccess ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Email Access:</span>
+                            <span class="feature-status ${data.plan.features.emailAccess ? 'feature-enabled' : 'feature-disabled'}">
+                                ${data.plan.features.emailAccess ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Web Access:</span>
+                            <span class="feature-status ${data.plan.features.webAccess ? 'feature-enabled' : 'feature-disabled'}">
+                                ${data.plan.features.webAccess ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Personalization:</span>
+                            <span class="feature-status ${data.plan.features.personalization ? 'feature-enabled' : 'feature-disabled'}">
+                                ${data.plan.features.personalization ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Public DB:</span>
+                            <span class="feature-status ${data.plan.features.publicDb ? 'feature-enabled' : 'feature-disabled'}">
+                                ${data.plan.features.publicDb ? 'Enabled' : 'Disabled'}
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('profile-details').innerHTML = '<p>No active subscription found.</p>';
+                    document.getElementById('rfq-usage-stats').innerHTML = '<p>No usage data available.</p>';
+                    document.getElementById('supplier-usage-stats').innerHTML = '<p>No usage data available.</p>';
+                    document.getElementById('feature-access-stats').innerHTML = '<p>No feature access data available.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching profile info:', error);
+            }
+        }
+
+        // Add coupon validation handler
+        async function validateCoupon() {
+            const code = document.getElementById('coupon-input').value.trim();
+            const messageEl = document.getElementById('coupon-message');
+            const detailsEl = document.getElementById('coupon-details');
+
+            if (!code) {
+                messageEl.textContent = 'Please enter a coupon code';
+                messageEl.className = 'coupon-message error';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/payments/coupons/validate', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ code })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Invalid coupon code');
+                }
+
+                const result = await response.json();
+                messageEl.textContent = 'Coupon applied successfully!';
+                messageEl.className = 'coupon-message success';
+                
+                // Show coupon details
+                detailsEl.innerHTML = `
+                    <div class="detail-item">
+                        <span class="detail-label">Discount</span>
+                        <span class="detail-value">${result.discountPercentage}% off</span>
+                    </div>
+                    ${result.validUntil ? `
+                        <div class="detail-item">
+                            <span class="detail-label">Valid Until</span>
+                            <span class="detail-value">${new Date(result.validUntil).toLocaleDateString()}</span>
+                        </div>
+                    ` : ''}
+                `;
+                detailsEl.classList.remove('hidden');
+
+                // Store valid coupon for payment
+                validCoupon = result;
+
+                // Update price display
+                updatePriceDisplay();
+            } catch (error) {
+                console.error('Error validating coupon:', error);
+                messageEl.textContent = error.message || 'Failed to validate coupon';
+                messageEl.className = 'coupon-message error';
+                detailsEl.classList.add('hidden');
+                validCoupon = null;
+                updatePriceDisplay();
+            }
+        }
+
+        function showCouponMessage(message, type) {
+            couponMessage.textContent = message;
+            couponMessage.className = `coupon-message ${type}`;
+        }
+
+        function updatePriceDisplay() {
+            const selectedPlan = document.getElementById('selected-plan');
+            const priceDisplay = document.querySelector('.price-info');
+            if (!selectedPlan || !selectedPlan.value || !priceDisplay) return;
+
+            const plan = globalPlans.find(p => p._id === selectedPlan.value);
+            if (!plan) return;
+
+            const originalPrice = plan.price.amount;
+            
+            if (validCoupon) {
+                const discountAmount = (originalPrice * validCoupon.discountPercentage) / 100;
+                const discountedPrice = originalPrice - discountAmount;
+                priceDisplay.innerHTML = `
+                    <span class="original-price">Original Price: $${originalPrice.toFixed(2)}</span>
+                    <span class="discount">Discount: ${validCoupon.discountPercentage}% off</span>
+                    <span class="final-price">Final Price: $${discountedPrice.toFixed(2)}</span>
+                `;
+            } else {
+                priceDisplay.innerHTML = `
+                    <span class="final-price">Price: $${originalPrice.toFixed(2)}</span>
+                `;
+            }
+        }
+
+        // Handle coupon form submission
+        async function handleCouponSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const editId = form.dataset.editId;
+            
+            const couponData = {
+                code: document.getElementById('coupon-code').value,
+                discountPercentage: parseInt(document.getElementById('discount-percentage').value),
+                validUntil: document.getElementById('valid-until').value,
+                maxUses: parseInt(document.getElementById('max-uses').value),
+                allowedUsers: document.getElementById('allowed-users').value
+                    .split(',')
+                    .map(email => email.trim())
+                    .filter(email => email)
+            };
+
+            try {
+                const url = editId 
+                    ? `/api/payments/coupons/${editId}`
+                    : '/api/payments/coupons';
+                    
+                const method = editId ? 'PATCH' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getHeaders()
+                    },
+                    body: JSON.stringify(couponData)
+                });
+
+                if (!response.ok) throw new Error('Failed to save coupon');
+                
+                showMessage('success', `Coupon ${editId ? 'updated' : 'created'} successfully`);
+                form.reset();
+                form.dataset.editId = '';
+                document.querySelector('#coupon-form button[type="submit"]').textContent = 'Create Coupon';
+                loadCoupons();
+            } catch (error) {
+                showMessage('error', `Failed to ${editId ? 'update' : 'create'} coupon: ` + error.message);
+            }
+        }
+
+        // Update selected plans count
+        function updateSelectedPlansCount() {
+            const selectedCount = Array.from(appliedPlansSelect?.selectedOptions || []).length;
+            const helpText = document.querySelector('.plan-select-help');
+            if (helpText) {
+                helpText.innerHTML = `
+                    ${selectedCount} plan${selectedCount !== 1 ? 's' : ''} selected<br>
+                    Hold Ctrl (Windows) or Cmd (Mac) to select multiple plans.<br>
+                    Click selected plan again to deselect.
+                `;
+            }
+        }
+
+        // Show message helper
+        function showMessage(message, type = 'success') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = message;
+            
+            const container = document.querySelector('.admin-coupon-section');
+            if (container) {
+                container.insertBefore(messageDiv, container.firstChild);
+                setTimeout(() => messageDiv.remove(), 3000);
+            }
+        }
+
+        // Edit coupon
+        async function editCoupon(id) {
+            try {
+                const response = await fetch(`/api/payments/coupons/${id}`, {
+                    headers: getHeaders()
+                });
+                if (!response.ok) throw new Error('Failed to fetch coupon');
+                
+                const coupon = await response.json();
+                
+                // Fill form with coupon data
+                document.getElementById('coupon-code').value = coupon.code;
+                document.getElementById('discount-percentage').value = coupon.discountPercentage;
+                document.getElementById('valid-until').value = new Date(coupon.validUntil).toISOString().slice(0, 16);
+                document.getElementById('max-uses').value = coupon.maxUses;
+                document.getElementById('allowed-users').value = coupon.allowedUsers.join(', ');
+                
+                // Update form for edit mode
+                const form = document.getElementById('coupon-form');
+                form.dataset.editId = id;
+                document.querySelector('#coupon-form button[type="submit"]').textContent = 'Update Coupon';
+            } catch (error) {
+                showMessage('error', 'Failed to load coupon for editing: ' + error.message);
+            }
+        }
+
+        // Delete coupon
+        async function deleteCoupon(id) {
+            if (!confirm('Are you sure you want to delete this coupon?')) return;
+            
+            try {
+                const response = await fetch(`/api/payments/coupons/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getHeaders()
+                    }
+                });
+                
+                if (!response.ok) throw new Error('Failed to delete coupon');
+                
+                showMessage('success', 'Coupon deleted successfully');
+                loadCoupons();
+            } catch (error) {
+                showMessage('error', 'Failed to delete coupon: ' + error.message);
+            }
+        }
+
+        // Toggle coupon status
+        async function toggleCoupon(id) {
+            try {
+                const response = await fetch(`/api/payments/coupons/${id}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getHeaders()
+                    }
+                });
+                
+                if (!response.ok) throw new Error('Failed to toggle coupon status');
+                
+                const coupon = await response.json();
+                showMessage('success', `Coupon ${coupon.isActive ? 'activated' : 'deactivated'} successfully`);
+                loadCoupons();
+            } catch (error) {
+                showMessage('error', 'Failed to toggle coupon status: ' + error.message);
+            }
+        }
+
+        // Add function to calculate discounted price
+        function calculateDiscountedPrice(planId, discountPercentage) {
+            const plan = globalPlans.find(p => p._id === planId);
+            if (!plan) return null;
+
+            const originalPrice = plan.price.amount;
+            const discountAmount = (originalPrice * discountPercentage) / 100;
+            return originalPrice - discountAmount;
+        }
+
+        // Add styles for price display
+        const styleSheet = document.createElement("style");
+        styleSheet.textContent = `
+            .price-display {
+                margin-top: 10px;
+                padding: 10px;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+            }
+            .price-info {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .original-price {
+                text-decoration: line-through;
+                color: #999;
+            }
+            .discount {
+                color: #27ae60;
+                font-weight: bold;
+            }
+            .final-price {
+                font-size: 1.2em;
+                font-weight: bold;
+                color: #2c3e50;
+            }
+        `;
+        document.head.appendChild(styleSheet);
+    </script>
+</body>
+</html> 

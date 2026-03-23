@@ -1,0 +1,23 @@
+Success: 4242 4242 4242 4242
+Requires Authentication: 4000 0025 0000 3155
+Decline: 4000 0000 0000 9995
+
+
+webhooks events;
+ customer.subscription.updated,
+  customer.subscription.deleted,
+   invoice.payment_failed,
+    invoice.payment_succeeded
+    
+
+npm run data:import
+    npm run data:destroy
+
+    # 1. First, see your current plans
+node scripts/update-plans-with-store-ids.js list
+
+# 2. Preview what will be updated (dry run)
+node scripts/update-plans-with-store-ids.js update
+
+# 3. Actually apply the store IDs
+node scripts/update-plans-with-store-ids.js update --execute --force

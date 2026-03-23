@@ -1,0 +1,114 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database for Corteza
+  corteza-db:
+    image: postgres:13
+    container_name: corteza-postgres
+    environment:
+      POSTGRES_DB: corteza
+      POSTGRES_USER: corteza
+      POSTGRES_PASSWORD: corteza123
+    volumes:
+      - corteza_db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - corteza-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corteza"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and sessions
+  corteza-redis:
+    image: redis:7-alpine
+    container_name: corteza-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - corteza-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Corteza Server
+  corteza-server:
+    image: cortezaproject/corteza:2023.9.5
+    container_name: corteza-server
+    depends_on:
+      corteza-db:
+        condition: service_healthy
+      corteza-redis:
+        condition: service_healthy
+    environment:
+      - DB_DSN=postgres://corteza:corteza123@corteza-db:5432/corteza?sslmode=disable
+      - REDIS_DSN=redis://corteza-redis:6379
+      - AUTH_JWT_SECRET=your-jwt-secret-key
+      - AUTH_CSRF_SECRET=your-csrf-secret-key
+      - HTTP_ADDR=:80
+      - APP_NAME=Corteza
+      - APP_BASEURL=http://localhost:18080
+      - HTTP_WEBAPP_ENABLED=true
+      - HTTP_API_ENABLED=true
+      - HTTP_API_BASE_PATH=/api
+      - HTTP_WEBAPP_BASE_PATH=/
+      - HTTP_API_BASE_URL=http://localhost:18080/api
+      - HTTP_WEBAPP_BASE_URL=http://localhost:18080
+      - AUTH_BASEURL=http://localhost:18080/auth
+      - AUTH_OAUTH2_REDIRECT_URL=http://localhost:18080/auth/oauth2/callback
+      - AUTH_OAUTH2_PROVIDER_URL=http://localhost:18080
+      - AUTH_OAUTH2_CLIENT_ID=corteza-webapp
+      - AUTH_OAUTH2_CLIENT_SECRET=corteza-webapp-secret
+      - CORREDOR_ENABLED=false
+      - ACTIONLOG_ENABLED=true
+      - EVENTBUS_ENABLED=true
+      - EVENTBUS_SCHEDULER_ENABLED=true
+      - PROVISION_MIGRATE_DATABASE=true
+      - PROVISION_AUTO_SETUP=true
+      - PROVISION_SAMPLES=true
+      - COMPOSE_UI_ENABLED=true
+      - COMPOSE_UI_BASE_URL=http://localhost:18080
+      - COMPOSE_API_ENABLED=true
+      - COMPOSE_API_BASE_URL=http://localhost:18080/api
+      - SYSTEM_UI_ENABLED=true
+      - SYSTEM_UI_BASE_URL=http://localhost:18080
+      - SYSTEM_API_ENABLED=true
+      - SYSTEM_API_BASE_URL=http://localhost:18080/api
+    ports:
+      - "18080:80"
+    networks:
+      - corteza-network
+    volumes:
+      - corteza_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:alpine
+    container_name: corteza-nginx
+    depends_on:
+      - corteza-server
+    ports:
+      - "18080:80"
+    networks:
+      - corteza-network
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: always
+
+volumes:
+  corteza_db_data:
+  corteza_data:
+
+networks:
+  corteza-network:
+    driver: bridge 

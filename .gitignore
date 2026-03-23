@@ -1,0 +1,41 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+
+# Environment variables (all variants) - NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Service account keys & credentials - NEVER commit these
+*.json
+!package.json
+!package-lock.json
+
+# Apple Auth Keys
+*.p8
+
+# Logs
+*.log
+combined.log
+error.log
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel
+temp_auto_push.bat
+temp_interactive_push.bat
+branch_structure.json
